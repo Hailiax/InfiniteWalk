@@ -18,10 +18,14 @@ public class TransformController : MonoBehaviour
 
     private GameObject clone;
 
+    public GameObject skybox;
+    private Quaternion skyboxRotation;
+
     void Start()
     {
         clone = Instantiate(cloneSource, transform);
         clone.transform.localScale = new Vector3(1, 1, -1);
+        skyboxRotation = skybox.transform.rotation;
     }
 
     void Update()
@@ -34,9 +38,9 @@ public class TransformController : MonoBehaviour
         Vector3 forwardTarget = position + rig.centerEyeAnchor.forward * approximation;
         Vector3 upTarget = position + rig.centerEyeAnchor.up * approximation;
 
-        Vector3 polarPosition = ToPolar(position);
-        Vector3 polarForwardTarget = ToPolar(forwardTarget);
-        Vector3 polarUpTarget = ToPolar(upTarget);
+        Vector3 polarPosition = ToPolar(position, 0);
+        Vector3 polarForwardTarget = ToPolar(forwardTarget, 1);
+        Vector3 polarUpTarget = ToPolar(upTarget, 2);
         Quaternion polarRotation = Quaternion.LookRotation(polarForwardTarget - polarPosition, polarUpTarget - polarPosition);
 
         transform.position = position - polarPosition;
@@ -48,13 +52,24 @@ public class TransformController : MonoBehaviour
 
         // Move clone
         clone.transform.localPosition = new Vector3(0, 0, Mathf.Sign(polarPosition.z) * cloneLegnth);
+
+        // Update skybox
+        skybox.transform.rotation = skyboxRotation * polarRotation;
     }
 
+    private float[] lastTheta = { 0, 0, 0 };
+    private float[] thetaOffset = { 0, 0, 0 };
+
     // x = radius, y unchanged, z = arclength traveled (theta * r)
-    Vector3 ToPolar(Vector3 cartesian)
+    Vector3 ToPolar(Vector3 cartesian, int offsetIndex)
     {
         float r = Mathf.Sqrt(cartesian.x * cartesian.x + cartesian.z * cartesian.z);
         float t = Mathf.Atan2(cartesian.z, cartesian.x);
-        return new Vector3(r, cartesian.y, t * radius);
+        if (lastTheta[offsetIndex] > Mathf.PI / 2 && t < -Mathf.PI / 2)
+            thetaOffset[offsetIndex] += Mathf.PI * 2;
+        if (t > Mathf.PI / 2 && lastTheta[offsetIndex] < -Mathf.PI / 2)
+            thetaOffset[offsetIndex] -= Mathf.PI * 2;
+        lastTheta[offsetIndex] = t;
+        return new Vector3(r, cartesian.y, (t + thetaOffset[offsetIndex]) * radius);
     }
 }
